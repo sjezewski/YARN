@@ -3,16 +3,11 @@ require 'uri'
 require 'mechanize'
 require 'nokogiri'
 require 'yaml'
+require 'pony'
 
 require_relative 'filter'
 
 module RSS
-  class Data
-    def initialize(feed_url)
-      
-    end
-  end
-
   class Feed
     def initialize(url)
       @host = get_host(url)
@@ -32,6 +27,7 @@ module RSS
       result = parse(data)
 
       save_results(result)
+      notify(result)
 
       # Output the current counts:
       File.open(get_counts_path,"w") {|f| f << @counts.to_yaml}
@@ -40,7 +36,24 @@ module RSS
 
     
     private
-    
+   
+    def notify(results)
+      home = %x`echo $HOME`
+      home.gsub!("\n","")
+      notify_config = YAML.load(File.open(File.join(home,".yarn")).read)
+      # Eventually setup notify method here --- batch/not -- email/growl
+      results.each do |filter, data|
+        body = ""
+        data.each do |item|
+          body << "Item: #{item[:title]}"
+          body << "Link: #{item[:link]}"
+          body << "Data: #{item[:data]}"
+        end
+
+        Pony.mail(:to => notify_config[:email], :from => 'yarn@localhost', :subject => "New Match for #{filter}", :body => body)
+      end
+    end
+
     def save_results(results)
       puts results
       results_file = File.join(get_project_path, "results.yaml")
@@ -134,7 +147,7 @@ module RSS
             # -- I'm getting mixed data here, not sure if its going to be useful
             # -- but the idea is not to re-search items I've seen before
             update_count(link)
-            results << {:link => link, :data => this_result}
+            results << {:link => link, :data => this_result, :title => item.at("title").inner_text}
           end
         end
 
