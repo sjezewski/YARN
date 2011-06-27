@@ -14,6 +14,7 @@ module RSS
       @feed_id = get_id(url)
       @filters = load_filters
       @counts = load_count
+      @history = load_history
       @url = url
     end
 
@@ -44,6 +45,8 @@ module RSS
       # Eventually setup notify method here --- batch/not -- email/growl
       results.each do |filter, data|
         body = ""
+        next if data.size == 0
+
         data.each do |item|
           body << "Item: #{item[:title]}   "
           body << "Link: #{item[:link]}    "
@@ -78,6 +81,26 @@ module RSS
       File.open(results_file, "w") {|f| f << old_results.to_yaml}
     end
 
+    def load_history
+      results_file = File.join(get_project_path, "results.yaml")
+      begin
+        YAML.load(File.open(results_file).read)
+      rescue Errno::ENOENT
+        {}
+      end
+    end
+
+    def seen_item(filter, link)
+      filter = @history[filter]
+      return false if filter.nil?
+      
+      filter.each do |item|
+        return true if item[:link] == link
+      end
+
+      return false
+    end
+
     def get_project_path 
       home = %x`echo $HOME`
       home.gsub!("\n","")
@@ -87,6 +110,11 @@ module RSS
     def get_counts_path
       file_path = get_project_path
       File.join(file_path, "#{@feed_id}-counts.yaml")
+    end
+
+    def get_counts_path
+      file_path = get_project_path
+      File.join(file_path, "#{@feed_id}-history.yaml")
     end
 
     def get_config_path
@@ -134,15 +162,16 @@ module RSS
 
       @filters.each do |filter_config|
         filter = RSS::Filters::Main.new(filter_config)
-        puts "="*140
-        puts "Main filter = #{filter_config[:name]}"
         results = []
 
         items.each do |item|
+          link = item.at("link").inner_text
+          next if seen_item(filter_config[:name], link)
+
           this_result = filter.apply(item)
           puts "Got result! Filter => #{filter}, Item: #{item.at('title').inner_text}"
           unless this_result.nil?
-            link = item.at("link").inner_text
+            
             # Update count
             # -- I'm getting mixed data here, not sure if its going to be useful
             # -- but the idea is not to re-search items I've seen before
@@ -151,10 +180,8 @@ module RSS
           end
         end
 
-
         result[filter_config[:name]] = results
       end
-      
       
       result
     end
