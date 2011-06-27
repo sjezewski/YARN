@@ -1,0 +1,19 @@
+--- 
+- :filters: 
+  - :type: title
+    :filter: !ruby/regexp /Chair/
+    :sub_filters: 
+    - :type: description
+      :filter: white
+    - :type: price
+      :threshold: 650
+  - :type: description
+    :filter: dark wood
+  :name: Chair
+- :filters: 
+  - :type: title
+    :filter: !ruby/regexp /Chair/
+    :sub_filters: 
+    - :type: price
+      :threshold: 0
+  :name: Impossa-chair
